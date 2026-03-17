@@ -1,0 +1,14 @@
+# 编译输出目录
+[Bb]in/
+[Oo]bj/
+# 运行时标识符目录
+win-x64/
+publish/
+# VS 相关缓存
+.vs/
+.vscode/
+*.user
+*.suo
+# .NET 临时文件
+*.tmp
+*.log
