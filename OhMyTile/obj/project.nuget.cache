@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "dgSpecHash": "VZihqOYHIc0=",
+  "success": true,
+  "projectFilePath": "D:\\EnumaZannen\\project\\OhMyTile\\OhMyTile\\OhMyTile.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Enuma\\.nuget\\packages\\microsoft.windows.cswinrt\\2.1.1\\microsoft.windows.cswinrt.2.1.1.nupkg.sha512",
+    "C:\\Users\\Enuma\\.nuget\\packages\\modernwpfui\\0.9.6\\modernwpfui.0.9.6.nupkg.sha512",
+    "C:\\Users\\Enuma\\.nuget\\packages\\system.drawing.common\\9.0.0\\system.drawing.common.9.0.0.nupkg.sha512",
+    "C:\\Users\\Enuma\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.57\\microsoft.windows.sdk.net.ref.10.0.19041.57.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1510",
+      "level": "Warning",
+      "message": "PackageReference System.Drawing.Common 将不会删除。请考虑从依赖项中移除此包，因为可能不需要它。",
+      "projectPath": "D:\\EnumaZannen\\project\\OhMyTile\\OhMyTile\\OhMyTile.csproj",
+      "warningLevel": 1,
+      "filePath": "D:\\EnumaZannen\\project\\OhMyTile\\OhMyTile\\OhMyTile.csproj",
+      "libraryId": "System.Drawing.Common",
+      "targetGraphs": [
+        "net10.0-windows10.0.19041"
+      ]
+    }
+  ]
+}
