@@ -29,8 +29,76 @@
         <TextBlock Text="磁贴显示名称"/>
         <TextBox x:Name="TileNameInput" Text="我的快捷方式"/>
 
-        <TextBlock Text="背景颜色 (HEX)"/>
-        <TextBox x:Name="BgColorInput" Text="#000000"/>
+        <!-- 第二步：自定义外观 内部 -->
+        <TextBlock Text="背景颜色设置" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
+
+        <Grid Margin="0,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="BgColorInput" 
+                    Text="#FF0078D7" 
+                    VerticalAlignment="Center" 
+                    TextChanged="BgColorInput_TextChanged" 
+                    MaxLength="9"
+                    InputMethod.IsInputMethodEnabled="False"/>
+            <!-- 全局吸色按钮 -->
+            <Button Grid.Column="1" Click="StartEyeDropper_Click" Margin="5,0,0,0" ToolTip="从屏幕吸色">
+                <ui:SymbolIcon Symbol="Target"/>
+            </Button>
+        </Grid>
+
+        <!-- SAI 风格配色板 -->
+        <!-- SAI 风格配色板 -->
+        <Viewbox Width="200" Height="200" HorizontalAlignment="Center" Margin="0,10">
+            <Grid HorizontalAlignment="Center" Margin="0,10" Width="200" Height="200">
+                <Image x:Name="ColorWheelImg" Stretch="None" 
+                    MouseLeftButtonDown="ColorWheel_MouseDown" 
+                    MouseMove="ColorWheel_MouseMove"
+                    MouseLeftButtonUp="ColorWheel_MouseUp" 
+                    Cursor="Hand"/>
+                
+                <Canvas IsHitTestVisible="False">
+                    <Ellipse x:Name="HueSelector" Width="14" Height="14" Stroke="White" StrokeThickness="2">
+                        <Ellipse.Effect>
+                            <DropShadowEffect BlurRadius="3" ShadowDepth="0" Color="Black" Opacity="0.8"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+                </Canvas>
+
+                <Grid Width="100" Height="100" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MouseLeftButtonDown="SVPad_MouseDown" 
+                    MouseMove="SVPad_MouseMove" 
+                    MouseLeftButtonUp="SVPad_MouseUp"
+                    Cursor="Cross">
+                    <Rectangle x:Name="HueBackground" Fill="Blue"/>
+                    <Rectangle>
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                <GradientStop Color="White" Offset="0"/>
+                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Rectangle>
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                <GradientStop Color="#00000000" Offset="0"/>
+                                <GradientStop Color="Black" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <Canvas IsHitTestVisible="False">
+                        <Ellipse x:Name="SVSelector" Width="10" Height="10" Stroke="White" StrokeThickness="2">
+                            <Ellipse.Effect>
+                                <DropShadowEffect BlurRadius="3" ShadowDepth="0" Color="Black" Opacity="0.8"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+                    </Canvas>
+                </Grid>
+            </Grid>
+        </Viewbox>
 
         <!-- <Button Content="自定义磁贴图标/图片" Click="SelectImage_Click" HorizontalAlignment="Stretch" Margin="0,10,0,0"/> -->
         <TextBlock Text="磁贴图标预览" Margin="0,10,0,0"/>
