@@ -7,8 +7,8 @@
     <Nullable>enable</Nullable>
     <AssemblyName>OhMyTile</AssemblyName>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- 解决 .NET 10 找不到运行时包的问题 -->
     <UseRidGraph>true</UseRidGraph>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

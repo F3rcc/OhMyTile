@@ -3,30 +3,85 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         ui:WindowHelper.UseModernWindowStyle="True"
-        Title="OhMyTile - 磁贴实验室" Height="500" Width="800">
+        Title="OhMyTile" Height="768" Width="768">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <ui:SimpleStackPanel Grid.Column="0" Margin="20" Spacing="10">
-            <TextBlock Text="磁贴名称"/>
-            <TextBox x:Name="TileNameInput" Text="我的漂亮磁贴"/>
+        <ui:SimpleStackPanel Margin="10" Spacing="10">
+        <TextBlock Text="第一步：选择目标" FontWeight="Bold" FontSize="16"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="TargetPathInput" 
+                    ui:ControlHelper.PlaceholderText="文件路径、文件夹或 URL" 
+                    TextChanged="TargetPathInput_TextChanged"/>
+            <Button Grid.Column="1" Content="文件" Click="SelectFile_Click" Margin="5,0"/>
+            <Button Grid.Column="2" Content="文件夹" Click="SelectFolder_Click"/>
+        </Grid>
 
-            <TextBlock Text="背景颜色 (HEX)"/>
-            <TextBox x:Name="BgColorInput" Text="#FF0078D7"/>
+        <TextBlock Text="第二步：自定义外观" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
+        <TextBlock Text="磁贴显示名称"/>
+        <TextBox x:Name="TileNameInput" Text="我的快捷方式"/>
 
-            <Button Content="选择图片" Click="SelectImage_Click" HorizontalAlignment="Stretch" Margin="0,10,0,0"/>
-            <Button Content="固定到开始菜单" Click="CreateTile_Click" 
-                    Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40"/>
-        </ui:SimpleStackPanel>
+        <TextBlock Text="背景颜色 (HEX)"/>
+        <TextBox x:Name="BgColorInput" Text="#000000"/>
 
-        <Grid Grid.Column="1" Background="#F3F3F3">
+        <!-- <Button Content="自定义磁贴图标/图片" Click="SelectImage_Click" HorizontalAlignment="Stretch" Margin="0,10,0,0"/> -->
+        <TextBlock Text="磁贴图标预览" Margin="0,10,0,0"/>
+        <TextBlock Text="图标缩放比例 (%)" Margin="0,10,0,0"/>
+        <Grid Margin="0,5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="60"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <!-- 缩放拖动条：10% - 100% -->
+            <Slider x:Name="IconScaleSlider" Minimum="10" Maximum="100" Value="33" 
+                    TickFrequency="1" IsSnapToTickEnabled="True"
+                    ValueChanged="IconScaleSlider_ValueChanged"/>
+            <!-- 百分比输入框 -->
+            <TextBox Grid.Column="1" x:Name="IconScaleInput" Text="33" 
+                    Margin="5,0" TextAlignment="Center"
+                    TextChanged="IconScaleInput_TextChanged"/>
+            <!-- 重置到系统默认 (33%) -->
+            <Button Grid.Column="2" Content="系统默认" Click="ResetScale_Click" 
+                    ToolTip="还原到 Windows 10 默认比例 (33%)"/>
+        </Grid>
+        <Grid Height="40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Content="选择自定义图片" Click="SelectImage_Click" HorizontalAlignment="Stretch"/>
+            <!-- 新增：重置按钮 -->
+            <Button Grid.Column="1" Content="重置" Click="ResetIcon_Click" Margin="5,0,0,0" ToolTip="恢复使用文件默认图标"/>
+        </Grid>        
+        <Separator Margin="0,10"/>
+        
+        <Button Content="固定到开始菜单" Click="CreateCustomLauncherTile_Click" 
+                Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40"/>
+    </ui:SimpleStackPanel>
+
+        <Grid Grid.Column="1" Background="#000000">
+            <!-- 修改右侧预览部分 -->
             <Border x:Name="TilePreview" Width="150" Height="150" Background="#FF0078D7" VerticalAlignment="Center" HorizontalAlignment="Center">
                 <Grid>
-                    <Image x:Name="ImagePreview" Stretch="UniformToFill"/>
-                    <TextBlock Text="{Binding ElementName=TileNameInput, Path=Text}" Foreground="White" VerticalAlignment="Bottom" Margin="5"/>
+                    <!-- 核心：不要设置 Image 的 Width/Height 为 150，我们要动态控制它 -->
+                    <Image x:Name="ImagePreview" 
+                            Stretch="Uniform" 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center"
+                            RenderOptions.BitmapScalingMode="Fant"
+                            SnapsToDevicePixels="True"
+                            UseLayoutRounding="True" />
+                    <TextBlock x:Name="PreviewLabel" Text="{Binding ElementName=TileNameInput, Path=Text}" 
+                            Foreground="White" VerticalAlignment="Bottom" Margin="5" FontSize="11"/>
                 </Grid>
             </Border>
         </Grid>
