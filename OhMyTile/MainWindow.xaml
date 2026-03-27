@@ -3,155 +3,281 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         ui:WindowHelper.UseModernWindowStyle="True"
-        Title="OhMyTile" Height="768" Width="768">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-
-        <ui:SimpleStackPanel Margin="10" Spacing="10">
-        <TextBlock Text="第一步：选择目标" FontWeight="Bold" FontSize="16"/>
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBox x:Name="TargetPathInput" 
-                    ui:ControlHelper.PlaceholderText="文件路径、文件夹或 URL" 
-                    TextChanged="TargetPathInput_TextChanged"/>
-            <Button Grid.Column="1" Content="文件" Click="SelectFile_Click" Margin="5,0"/>
-            <Button Grid.Column="2" Content="文件夹" Click="SelectFolder_Click"/>
-        </Grid>
-
-        <TextBlock Text="第二步：自定义外观" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
-        <TextBlock Text="磁贴显示名称"/>
-        <TextBox x:Name="TileNameInput" Text="我的快捷方式"/>
-
-        <!-- 第二步：自定义外观 内部 -->
-        <TextBlock Text="背景颜色设置" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
-
-        <Grid Margin="0,5">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBox x:Name="BgColorInput" 
-                    Text="#FF0078D7" 
-                    VerticalAlignment="Center" 
-                    TextChanged="BgColorInput_TextChanged" 
-                    MaxLength="9"
-                    InputMethod.IsInputMethodEnabled="False"/>
-            <!-- 全局吸色按钮 -->
-            <Button Grid.Column="1" Click="StartEyeDropper_Click" Margin="5,0,0,0" ToolTip="从屏幕吸色">
-                <ui:SymbolIcon Symbol="Target"/>
-            </Button>
-        </Grid>
-
-        <!-- SAI 风格配色板 -->
-        <!-- SAI 风格配色板 -->
-        <Viewbox Width="200" Height="200" HorizontalAlignment="Center" Margin="0,10">
-            <Grid HorizontalAlignment="Center" Margin="0,10" Width="200" Height="200">
-                <Image x:Name="ColorWheelImg" Stretch="None" 
-                    MouseLeftButtonDown="ColorWheel_MouseDown" 
-                    MouseMove="ColorWheel_MouseMove"
-                    MouseLeftButtonUp="ColorWheel_MouseUp" 
-                    Cursor="Hand"/>
-                
-                <Canvas IsHitTestVisible="False">
-                    <Ellipse x:Name="HueSelector" Width="14" Height="14" Stroke="White" StrokeThickness="2">
-                        <Ellipse.Effect>
-                            <DropShadowEffect BlurRadius="3" ShadowDepth="0" Color="Black" Opacity="0.8"/>
-                        </Ellipse.Effect>
-                    </Ellipse>
-                </Canvas>
-
-                <Grid Width="100" Height="100" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    MouseLeftButtonDown="SVPad_MouseDown" 
-                    MouseMove="SVPad_MouseMove" 
-                    MouseLeftButtonUp="SVPad_MouseUp"
-                    Cursor="Cross">
-                    <Rectangle x:Name="HueBackground" Fill="Blue"/>
-                    <Rectangle>
-                        <Rectangle.Fill>
-                            <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                <GradientStop Color="White" Offset="0"/>
-                                <GradientStop Color="#00FFFFFF" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Rectangle.Fill>
-                    </Rectangle>
-                    <Rectangle>
-                        <Rectangle.Fill>
-                            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                                <GradientStop Color="#00000000" Offset="0"/>
-                                <GradientStop Color="Black" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Rectangle.Fill>
-                    </Rectangle>
-                    <Canvas IsHitTestVisible="False">
-                        <Ellipse x:Name="SVSelector" Width="10" Height="10" Stroke="White" StrokeThickness="2">
-                            <Ellipse.Effect>
-                                <DropShadowEffect BlurRadius="3" ShadowDepth="0" Color="Black" Opacity="0.8"/>
-                            </Ellipse.Effect>
-                        </Ellipse>
-                    </Canvas>
-                </Grid>
-            </Grid>
-        </Viewbox>
-
-        <!-- <Button Content="自定义磁贴图标/图片" Click="SelectImage_Click" HorizontalAlignment="Stretch" Margin="0,10,0,0"/> -->
-        <TextBlock Text="磁贴图标预览" Margin="0,10,0,0"/>
-        <TextBlock Text="图标缩放比例 (%)" Margin="0,10,0,0"/>
-        <Grid Margin="0,5">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="60"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <!-- 缩放拖动条：10% - 100% -->
-            <Slider x:Name="IconScaleSlider" Minimum="10" Maximum="100" Value="33" 
-                    TickFrequency="1" IsSnapToTickEnabled="True"
-                    ValueChanged="IconScaleSlider_ValueChanged"/>
-            <!-- 百分比输入框 -->
-            <TextBox Grid.Column="1" x:Name="IconScaleInput" Text="33" 
-                    Margin="5,0" TextAlignment="Center"
-                    TextChanged="IconScaleInput_TextChanged"/>
-            <!-- 重置到系统默认 (33%) -->
-            <Button Grid.Column="2" Content="系统默认" Click="ResetScale_Click" 
-                    ToolTip="还原到 Windows 10 默认比例 (33%)"/>
-        </Grid>
-        <Grid Height="40">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Button Content="选择自定义图片" Click="SelectImage_Click" HorizontalAlignment="Stretch"/>
-            <!-- 新增：重置按钮 -->
-            <Button Grid.Column="1" Content="重置" Click="ResetIcon_Click" Margin="5,0,0,0" ToolTip="恢复使用文件默认图标"/>
-        </Grid>        
-        <Separator Margin="0,10"/>
-        
-        <Button Content="固定到开始菜单" Click="CreateCustomLauncherTile_Click" 
-                Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40"/>
-    </ui:SimpleStackPanel>
-
-        <Grid Grid.Column="1" Background="#000000">
-            <!-- 修改右侧预览部分 -->
-            <Border x:Name="TilePreview" Width="150" Height="150" Background="#FF0078D7" VerticalAlignment="Center" HorizontalAlignment="Center">
+        Title="OhMyTile" Height="900" Width="900">
+    <TabControl ui:ControlHelper.CornerRadius="0">
+        <TabItem Header="单块磁贴定制">
                 <Grid>
-                    <!-- 核心：不要设置 Image 的 Width/Height 为 150，我们要动态控制它 -->
-                    <Image x:Name="ImagePreview" 
-                            Stretch="Uniform" 
-                            HorizontalAlignment="Center" 
-                            VerticalAlignment="Center"
-                            RenderOptions.BitmapScalingMode="Fant"
-                            SnapsToDevicePixels="True"
-                            UseLayoutRounding="True" />
-                    <TextBlock x:Name="PreviewLabel" Text="{Binding ElementName=TileNameInput, Path=Text}" 
-                            Foreground="White" VerticalAlignment="Bottom" Margin="5" FontSize="11"/>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SimpleStackPanel Margin="10" Spacing="10">
+                    <TextBlock Text="第一步：选择目标" FontWeight="Bold" FontSize="16"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="TargetPathInput" 
+                                ui:ControlHelper.PlaceholderText="文件路径、文件夹或 URL" 
+                                TextChanged="TargetPathInput_TextChanged"/>
+                        <Button Grid.Column="1" Content="文件" Click="SelectFile_Click" Margin="5,0"/>
+                        <Button Grid.Column="2" Content="文件夹" Click="SelectFolder_Click"/>
+                    </Grid>
+
+                    <TextBlock Text="第二步：自定义外观" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
+                    <TextBlock Text="磁贴显示名称"/>
+                    <TextBox x:Name="TileNameInput" Text="我的快捷方式"/>
+
+                    <!-- 第二步：自定义外观 内部 -->
+                    <TextBlock Text="背景颜色设置" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
+
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="BgColorInput" 
+                                Text="#FF0078D7" 
+                                VerticalAlignment="Center" 
+                                TextChanged="BgColorInput_TextChanged" 
+                                MaxLength="9"
+                                InputMethod.IsInputMethodEnabled="False"/>
+                        <!-- 全局吸色按钮 -->
+                        <Button Grid.Column="1" Click="StartEyeDropper_Click" Margin="5,0,0,0" ToolTip="从屏幕吸色">
+                            <ui:SymbolIcon Symbol="Target"/>
+                        </Button>
+                    </Grid>
+
+                    <!-- SAI 风格配色板 -->
+                    <!-- SAI 风格配色板 -->
+                    <Viewbox Width="200" Height="200" HorizontalAlignment="Center" Margin="0,10">
+                        <Grid HorizontalAlignment="Center" Margin="0,10" Width="200" Height="200">
+                            <Image x:Name="ColorWheelImg" Stretch="None" 
+                                MouseLeftButtonDown="ColorWheel_MouseDown" 
+                                MouseMove="ColorWheel_MouseMove"
+                                MouseLeftButtonUp="ColorWheel_MouseUp" 
+                                Cursor="Hand"/>
+                            
+                            <Canvas IsHitTestVisible="False">
+                                <Ellipse x:Name="HueSelector" Width="14" Height="14" Stroke="White" StrokeThickness="2">
+                                    <Ellipse.Effect>
+                                        <DropShadowEffect BlurRadius="3" ShadowDepth="0" Color="Black" Opacity="0.8"/>
+                                    </Ellipse.Effect>
+                                </Ellipse>
+                            </Canvas>
+
+                            <Grid Width="100" Height="100" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                MouseLeftButtonDown="SVPad_MouseDown" 
+                                MouseMove="SVPad_MouseMove" 
+                                MouseLeftButtonUp="SVPad_MouseUp"
+                                Cursor="Cross">
+                                <Rectangle x:Name="HueBackground" Fill="Blue"/>
+                                <Rectangle>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                            <GradientStop Color="White" Offset="0"/>
+                                            <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle>
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                            <GradientStop Color="#00000000" Offset="0"/>
+                                            <GradientStop Color="Black" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Canvas IsHitTestVisible="False">
+                                    <Ellipse x:Name="SVSelector" Width="10" Height="10" Stroke="White" StrokeThickness="2">
+                                        <Ellipse.Effect>
+                                            <DropShadowEffect BlurRadius="3" ShadowDepth="0" Color="Black" Opacity="0.8"/>
+                                        </Ellipse.Effect>
+                                    </Ellipse>
+                                </Canvas>
+                            </Grid>
+                        </Grid>
+                    </Viewbox>
+
+                    <!-- <Button Content="自定义磁贴图标/图片" Click="SelectImage_Click" HorizontalAlignment="Stretch" Margin="0,10,0,0"/> -->
+                    <TextBlock Text="磁贴图标预览" Margin="0,10,0,0"/>
+                    <TextBlock Text="图标缩放比例 (%)" Margin="0,10,0,0"/>
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="60"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- 缩放拖动条：10% - 100% -->
+                        <Slider x:Name="IconScaleSlider" Minimum="10" Maximum="100" Value="33" 
+                                TickFrequency="1" IsSnapToTickEnabled="True"
+                                ValueChanged="IconScaleSlider_ValueChanged"/>
+                        <!-- 百分比输入框 -->
+                        <TextBox Grid.Column="1" x:Name="IconScaleInput" Text="33" 
+                                Margin="5,0" TextAlignment="Center"
+                                TextChanged="IconScaleInput_TextChanged"/>
+                        <!-- 重置到系统默认 (33%) -->
+                        <Button Grid.Column="2" Content="系统默认" Click="ResetScale_Click" 
+                                ToolTip="还原到 Windows 10 默认比例 (33%)"/>
+                    </Grid>
+                    <Grid Height="40">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="选择自定义图片" Click="SelectImage_Click" HorizontalAlignment="Stretch"/>
+                        <!-- 新增：重置按钮 -->
+                        <Button Grid.Column="1" Content="重置" Click="ResetIcon_Click" Margin="5,0,0,0" ToolTip="恢复使用文件默认图标"/>
+                    </Grid>        
+                    <Separator Margin="0,10"/>
+                    
+                    <Button Content="固定到开始菜单" Click="CreateCustomLauncherTile_Click" 
+                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40"/>
+                </ui:SimpleStackPanel>
+
+                    <Grid Grid.Column="1" Background="#000000">
+                        <!-- 修改右侧预览部分 -->
+                        <Border x:Name="TilePreview" Width="150" Height="150" Background="#FF0078D7" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <Grid>
+                                <!-- 核心：不要设置 Image 的 Width/Height 为 150，我们要动态控制它 -->
+                                <Image x:Name="ImagePreview" 
+                                        Stretch="Uniform" 
+                                        HorizontalAlignment="Center" 
+                                        VerticalAlignment="Center"
+                                        RenderOptions.BitmapScalingMode="Fant"
+                                        SnapsToDevicePixels="True"
+                                        UseLayoutRounding="True" />
+                                <TextBlock x:Name="PreviewLabel" Text="{Binding ElementName=TileNameInput, Path=Text}" 
+                                        Foreground="White" VerticalAlignment="Bottom" Margin="5" FontSize="11"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
-            </Border>
-        </Grid>
-    </Grid>
+        </TabItem>
+        <!-- ================= 第二个选项卡：新增的大图切割模式 ================= -->
+        <TabItem Header="大图切割模式 (Tile Genie)">
+            <Grid Background="#2D2D30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300"/> <!-- 左侧控制面板 -->
+                    <ColumnDefinition Width="*"/>   <!-- 右侧预览操作区 -->
+                </Grid.ColumnDefinitions>
+
+                <!-- 左侧控制面板 -->
+                <StackPanel Grid.Column="0" Margin="15">
+                    <TextBlock Text="大图切割向导" FontSize="20" FontWeight="Bold" Foreground="White" Margin="10"/>
+                    
+                    <TextBlock Text="轮换模式与间隔:" Foreground="White" Margin="10,10,10,5"/>
+                    <Grid Margin="10,0,10,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- 模式选择 -->
+                        <ComboBox x:Name="RotationModeCombo" SelectedIndex="0" SelectionChanged="RotationModeCombo_SelectionChanged" HorizontalAlignment="Stretch">
+                            <ComboBoxItem Content="原生 3D 翻转 (系统随机错开)"/>
+                            <ComboBoxItem Content="定时同步切换 (整齐无缝切换)"/>
+                        </ComboBox>
+                        <!-- 间隔选择 (仅同步模式可用) -->
+                        <ComboBox x:Name="IntervalCombo" Grid.Column="1" SelectedIndex="0" Margin="5,0,0,0" IsEnabled="False" Width="90">
+                            <ComboBoxItem Content="15 分钟" Tag="15"/>
+                            <ComboBoxItem Content="30 分钟" Tag="30"/>
+                            <ComboBoxItem Content="1 小时" Tag="60"/>
+                            <ComboBoxItem Content="6 小时" Tag="360"/>
+                        </ComboBox>
+                    </Grid>
+
+                    <TextBlock Text="图片轮换队列 (最多5张, 系统原生3D翻转):" Foreground="White" Margin="10,10,10,5"/>
+                    <Grid Margin="10,0,10,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Content="添加图片" Click="AddQueueImage_Click" HorizontalAlignment="Stretch" Height="30"/>
+                        <Button Grid.Column="1" Content="移除" Click="RemoveQueueImage_Click" Margin="5,0,0,0" Width="50"/>
+                        <Button Grid.Column="2" Content="清空" Click="ClearQueueImage_Click" Margin="5,0,0,0" Width="50"/>
+                    </Grid>
+                    
+                    <ListBox x:Name="ImageQueueList" Height="100" Margin="10,0,10,10" 
+                             Background="#1E1E1E" Foreground="White"
+                             SelectionChanged="ImageQueueList_SelectionChanged" 
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="2">
+                                    <Image Source="{Binding Thumbnail}" Width="40" Height="40" Stretch="UniformToFill" Margin="0,0,10,0"/>
+                                    <TextBlock Text="{Binding FileName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Width="180"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                                        
+                    <CheckBox x:Name="MaskModeToggle" Content="开启遮罩模式 (Mask Mode)" 
+                              IsChecked="True" Checked="MaskModeToggle_Changed" Unchecked="MaskModeToggle_Changed"
+                              Foreground="White" Margin="10"/>
+
+                    <TextBlock Text="网格控制 (Grid Control)" Foreground="White" Margin="10,20,10,5"/>
+                    
+                    <!-- 行列增减控制 -->
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="30"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="列 (Columns):" Foreground="White" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content=" - " Click="RemoveCol_Click" Width="30" Padding="0"/>
+                        <TextBlock Grid.Column="2" x:Name="ColCountText" Text="2" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Button Grid.Column="3" Content=" + " Click="AddCol_Click" Width="30" Padding="0"/>
+
+                        <TextBlock Grid.Row="1" Text="行 (Rows):" Foreground="White" VerticalAlignment="Center" Margin="0,10,0,0"/>
+                        <Button Grid.Row="1" Grid.Column="1" Content=" - " Click="RemoveRow_Click" Width="30" Padding="0" Margin="0,10,0,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" x:Name="RowCountText" Text="2" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,10,0,0"/>
+                        <Button Grid.Row="1" Grid.Column="3" Content=" + " Click="AddRow_Click" Width="30" Padding="0" Margin="0,10,0,0"/>
+                    </Grid>
+
+                    <TextBlock Text="提示: 右键单击右侧网格可切换磁贴宽度。滚轮缩放，左键拖拽。" Foreground="LightGray" TextWrapping="Wrap" Margin="10,30,10,10"/>
+                    <TextBlock Text="点击磁贴时打开 (可选):" Foreground="White" Margin="10,10,10,5"/>
+                    <TextBox x:Name="GridTargetPathInput" ui:ControlHelper.PlaceholderText="输入文件路径或网址，留空则打开本软件" Margin="10,0,10,10"/>
+                    
+                    <Button Content="✂️ 开始切割并批量固定" Click="PinGridTiles_Click" 
+                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40" Margin="10,10,10,10"/>
+                </StackPanel>
+
+                <!-- 右侧动态操作区 -->
+                <Border Grid.Column="1" ClipToBounds="True" Background="#1E1E1E" SizeChanged="Workspace_SizeChanged">
+                    <Canvas x:Name="WorkspaceCanvas" Background="Transparent"
+                            MouseLeftButtonDown="Workspace_MouseLeftButtonDown"
+                            MouseLeftButtonUp="Workspace_MouseLeftButtonUp"
+                            MouseMove="Workspace_MouseMove"
+                            MouseWheel="Workspace_MouseWheel">
+                        
+                        <Image x:Name="LargeImage" Stretch="None" RenderTransformOrigin="0,0">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform x:Name="ImageScale" ScaleX="1" ScaleY="1"/>
+                                    <TranslateTransform x:Name="ImageTranslate" X="0" Y="0"/>
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
+
+                        <Path x:Name="MaskPath" Fill="#E6000000" IsHitTestVisible="False"/>
+
+                        <Grid x:Name="TileGridOverlay" IsHitTestVisible="True" Background="Transparent">
+                            <!-- 动态生成的 Border 将放在这里 -->
+                        </Grid>
+                    </Canvas>
+                </Border>
+            </Grid>
+        </TabItem>
+    </TabControl>
 </Window>

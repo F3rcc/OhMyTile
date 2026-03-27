@@ -29,6 +29,33 @@ public partial class MainWindow : Window
     private double _currentS = 1; 
     private double _currentV = 1;
 
+    // ===== 大图切割模式新增状态变量 =====
+    private const double BaseTileSize = 150.0; // 预览基准尺寸
+    private class TileState {
+        public bool IsWide { get; set; }
+        public bool IsCovered { get; set; }
+    }
+
+     public class QueueImageItem {
+        public string FullPath { get; set; } = "";
+        public string FileName { get; set; } = "";
+        public BitmapImage? Thumbnail { get; set; }
+        public double ScaleX { get; set; } = 1.0;
+        public double ScaleY { get; set; } = 1.0;
+        public double TranslateX { get; set; } = 0.0;
+        public double TranslateY { get; set; } = 0.0;
+    }
+
+    private List<List<TileState>> _gridMap = new();
+    private int _rowCount = 2;
+    private int _colCount = 2;
+
+    private System.Windows.Point _dragStartPoint; // 需明确指定为 System.Windows.Point 避免与 System.Drawing.Point 冲突
+    private bool _isDragging = false;
+
+    private System.Collections.ObjectModel.ObservableCollection<QueueImageItem> _imageQueue = new();
+
+
     // --- Win32 API 声明 (用于图标提取与全局吸色) ---
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern uint PrivateExtractIcons(string lpszFile, int nIconIndex, int cxIcon, int cyIcon, IntPtr[] phicon, uint[] piconid, uint nIcons, uint flags);
@@ -56,7 +83,430 @@ public partial class MainWindow : Window
         CreateColorWheel();
         UpdateSelectedColor();
         
-        this.Loaded += (s, e) => UpdatePreviewScale(IconScaleSlider.Value);
+        this.Loaded += (s, e) => {
+            UpdatePreviewScale(IconScaleSlider.Value);
+            // --- 大图模式初始化 ---
+            InitializeGridMap();
+            RebuildGridUI();
+            ImageQueueList.ItemsSource = _imageQueue;
+        };
+    }
+
+    // =========================================================================
+    // ======================== 大图切割模式 (Tile Genie) ========================
+    // =========================================================================
+
+    private void InitializeGridMap()
+    {
+        _gridMap.Clear();
+        for (int r = 0; r < _rowCount; r++) {
+            var row = new List<TileState>();
+            for (int c = 0; c < _colCount; c++) row.Add(new TileState { IsWide = false, IsCovered = false });
+            _gridMap.Add(row);
+        }
+    }
+
+    private void AddRow_Click(object sender, RoutedEventArgs e) {
+        _rowCount++;
+        var newRow = new List<TileState>();
+        for (int c = 0; c < _colCount; c++) newRow.Add(new TileState());
+        _gridMap.Add(newRow);
+        UpdateGridUI();
+    }
+
+    private void RotationModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // 只有选择“定时同步切换”时，才允许选择时间间隔
+        if (IntervalCombo != null)
+            IntervalCombo.IsEnabled = RotationModeCombo.SelectedIndex == 1;
+    }
+
+    private void RemoveRow_Click(object sender, RoutedEventArgs e) {
+        if (_rowCount <= 1) return;
+        _rowCount--;
+        _gridMap.RemoveAt(_gridMap.Count - 1);
+        UpdateGridUI();
+    }
+
+    private void AddCol_Click(object sender, RoutedEventArgs e) {
+        _colCount++;
+        foreach (var row in _gridMap) row.Add(new TileState());
+        UpdateGridUI();
+    }
+
+    private void RemoveCol_Click(object sender, RoutedEventArgs e) {
+        if (_colCount <= 1) return;
+        _colCount--;
+        foreach (var row in _gridMap) {
+            if (row[_colCount - 1].IsWide) row[_colCount - 1].IsWide = false;
+            row.RemoveAt(row.Count - 1);
+        }
+        UpdateGridUI();
+    }
+
+    private void UpdateGridUI() {
+        if (RowCountText != null) RowCountText.Text = _rowCount.ToString();
+        if (ColCountText != null) ColCountText.Text = _colCount.ToString();
+        RebuildGridUI();
+    }
+
+    private void RebuildGridUI()
+    {
+        if (TileGridOverlay == null || WorkspaceCanvas == null) return;
+
+        TileGridOverlay.Children.Clear();
+        TileGridOverlay.RowDefinitions.Clear();
+        TileGridOverlay.ColumnDefinitions.Clear();
+
+        for (int r = 0; r < _rowCount; r++) TileGridOverlay.RowDefinitions.Add(new RowDefinition { Height = new GridLength(BaseTileSize) });
+        for (int c = 0; c < _colCount; c++) TileGridOverlay.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(BaseTileSize) });
+
+        double totalW = _colCount * BaseTileSize;
+        double totalH = _rowCount * BaseTileSize;
+        Canvas.SetLeft(TileGridOverlay, (WorkspaceCanvas.ActualWidth - totalW) / 2);
+        Canvas.SetTop(TileGridOverlay, (WorkspaceCanvas.ActualHeight - totalH) / 2);
+
+        for (int r = 0; r < _rowCount; r++) {
+            for (int c = 0; c < _colCount; c++) {
+                if (_gridMap[r][c].IsCovered) continue;
+
+                Border tileBorder = new Border {
+                    BorderBrush = System.Windows.Media.Brushes.White,
+                    BorderThickness = new Thickness(2),
+                    Margin = new Thickness(2),
+                    Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(1, 0, 0, 0)) // 极弱透明底色，用于响应右键
+                };
+
+                ContextMenu menu = new ContextMenu();
+                MenuItem toggleItem = new MenuItem { Header = "切换 宽磁贴 / 正方形" };
+                int capR = r, capC = c; // 闭包捕获
+                toggleItem.Click += (s, ev) => ToggleWideTile(capR, capC);
+                menu.Items.Add(toggleItem);
+                tileBorder.ContextMenu = menu;
+
+                Grid.SetRow(tileBorder, r);
+                Grid.SetColumn(tileBorder, c);
+                if (_gridMap[r][c].IsWide) Grid.SetColumnSpan(tileBorder, 2);
+
+                TileGridOverlay.Children.Add(tileBorder);
+            }
+        }
+        UpdateMaskGeometry();
+    }
+
+    private void ToggleWideTile(int r, int c)
+    {
+        var state = _gridMap[r][c];
+        if (!state.IsWide) {
+            if (c + 1 < _colCount && !_gridMap[r][c + 1].IsCovered && !_gridMap[r][c + 1].IsWide) {
+                state.IsWide = true;
+                _gridMap[r][c + 1].IsCovered = true;
+            } else {
+                MessageBox.Show("右侧没有足够空间，或右侧已被其他宽磁贴占用！", "提示");
+            }
+        } else {
+            state.IsWide = false;
+            _gridMap[r][c + 1].IsCovered = false;
+        }
+        RebuildGridUI();
+    }
+
+    private void Workspace_SizeChanged(object sender, SizeChangedEventArgs e) => RebuildGridUI();
+    private void MaskModeToggle_Changed(object sender, RoutedEventArgs e) { if (MaskPath != null) MaskPath.Visibility = MaskModeToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed; }
+
+    private void UpdateMaskGeometry()
+    {
+        if (MaskPath == null || WorkspaceCanvas == null || WorkspaceCanvas.ActualWidth == 0) return;
+        
+        GeometryGroup group = new GeometryGroup { FillRule = FillRule.EvenOdd };
+        group.Children.Add(new RectangleGeometry(new Rect(-10000, -10000, 20000, 20000)));
+
+        double totalW = _colCount * BaseTileSize;
+        double totalH = _rowCount * BaseTileSize;
+        double offsetX = (WorkspaceCanvas.ActualWidth - totalW) / 2;
+        double offsetY = (WorkspaceCanvas.ActualHeight - totalH) / 2;
+
+        for (int r = 0; r < _rowCount; r++) {
+            for (int c = 0; c < _colCount; c++) {
+                if (_gridMap[r][c].IsCovered) continue;
+                double w = _gridMap[r][c].IsWide ? BaseTileSize * 2 : BaseTileSize;
+                double h = BaseTileSize;
+                group.Children.Add(new RectangleGeometry(new Rect(offsetX + c * BaseTileSize + 2, offsetY + r * BaseTileSize + 2, w - 4, h - 4)));
+            }
+        }
+        MaskPath.Data = group;
+    }
+
+    private void AddQueueImage_Click(object sender, RoutedEventArgs e) {
+        if (_imageQueue.Count >= 5) {
+            MessageBox.Show("Windows 原生磁贴轮换队列最多支持 5 张图片！", "提示");
+            return;
+        }
+        var d = new OpenFileDialog { Filter = "图片|*.png;*.jpg;*.jpeg", Multiselect = true };
+        if (d.ShowDialog() == true) {
+            foreach (var path in d.FileNames) {
+                if (_imageQueue.Count >= 5) break;
+                
+                BitmapImage bmp = new BitmapImage();
+                bmp.BeginInit(); bmp.UriSource = new Uri(path); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.EndInit();
+                
+                var item = new QueueImageItem {
+                    FullPath = path,
+                    FileName = Path.GetFileName(path),
+                    Thumbnail = bmp,
+                    ScaleX = 1, ScaleY = 1,
+                    // 默认居中
+                    TranslateX = (WorkspaceCanvas.ActualWidth - bmp.PixelWidth) / 2,
+                    TranslateY = (WorkspaceCanvas.ActualHeight - bmp.PixelHeight) / 2
+                };
+                _imageQueue.Add(item);
+            }
+            if (_imageQueue.Count > 0 && ImageQueueList.SelectedIndex == -1) 
+                ImageQueueList.SelectedIndex = 0;
+        }
+    }
+
+    private void RemoveQueueImage_Click(object sender, RoutedEventArgs e) {
+        if (ImageQueueList.SelectedItem is QueueImageItem item) {
+            _imageQueue.Remove(item);
+            if (_imageQueue.Count == 0) LargeImage.Source = null;
+        }
+    }
+
+    private void ClearQueueImage_Click(object sender, RoutedEventArgs e) {
+        _imageQueue.Clear();
+        LargeImage.Source = null;
+    }
+
+    private void ImageQueueList_SelectionChanged(object sender, SelectionChangedEventArgs e) {
+        if (ImageQueueList.SelectedItem is QueueImageItem item) {
+            LargeImage.Source = item.Thumbnail;
+            ImageScale.ScaleX = item.ScaleX;
+            ImageScale.ScaleY = item.ScaleY;
+            ImageTranslate.X = item.TranslateX;
+            ImageTranslate.Y = item.TranslateY;
+        }
+    }
+
+    private void Workspace_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) {
+        if (LargeImage.Source == null) return;
+        _isDragging = true;
+        _dragStartPoint = e.GetPosition(WorkspaceCanvas);
+        WorkspaceCanvas.CaptureMouse();
+    }
+
+    private void Workspace_MouseMove(object sender, MouseEventArgs e) {
+        if (_isDragging && LargeImage.Source != null && ImageQueueList.SelectedItem is QueueImageItem item) {
+            System.Windows.Point currentPos = e.GetPosition(WorkspaceCanvas);
+            ImageTranslate.X += currentPos.X - _dragStartPoint.X;
+            ImageTranslate.Y += currentPos.Y - _dragStartPoint.Y;
+            _dragStartPoint = currentPos;
+            // 实时保存位移
+            item.TranslateX = ImageTranslate.X;
+            item.TranslateY = ImageTranslate.Y;
+        }
+    }
+
+    private void Workspace_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) {
+        _isDragging = false;
+        WorkspaceCanvas.ReleaseMouseCapture();
+    }
+
+    private void Workspace_MouseWheel(object sender, MouseWheelEventArgs e) {
+        if (LargeImage.Source == null || !(ImageQueueList.SelectedItem is QueueImageItem item)) return;
+        
+        System.Windows.Point mousePos = e.GetPosition(WorkspaceCanvas);
+        double zoomFactor = e.Delta > 0 ? 1.1 : 1 / 1.1;
+
+        double relativeX = (mousePos.X - ImageTranslate.X) / ImageScale.ScaleX;
+        double relativeY = (mousePos.Y - ImageTranslate.Y) / ImageScale.ScaleY;
+
+        ImageScale.ScaleX *= zoomFactor;
+        ImageScale.ScaleY *= zoomFactor;
+        ImageTranslate.X = mousePos.X - (relativeX * ImageScale.ScaleX);
+        ImageTranslate.Y = mousePos.Y - (relativeY * ImageScale.ScaleY);
+        
+        // 实时保存缩放与位移
+        item.ScaleX = ImageScale.ScaleX;
+        item.ScaleY = ImageScale.ScaleY;
+        item.TranslateX = ImageTranslate.X;
+        item.TranslateY = ImageTranslate.Y;
+
+        e.Handled = true;
+    }
+
+    private async void PinGridTiles_Click(object sender, RoutedEventArgs e)
+    {
+        if (_imageQueue.Count == 0) {
+            MessageBox.Show("请至少添加一张图片！", "提示");
+            return;
+        }
+
+        int validTileCount = 0;
+        foreach (var row in _gridMap) {
+            foreach (var cell in row) if (!cell.IsCovered) validTileCount++;
+        }
+
+        // 读取选择的模式和间隔
+        bool isSyncMode = RotationModeCombo.SelectedIndex == 1;
+        int intervalMinutes = 15;
+        if (isSyncMode && IntervalCombo.SelectedItem is ComboBoxItem cbi && int.TryParse(cbi.Tag?.ToString(), out int v)) {
+            intervalMinutes = v;
+        }
+
+        var result = MessageBox.Show($"即将生成 {validTileCount} 个磁贴阵列。\n请连续点击“是”完成排版。\n\n是否立即开始？", 
+                                     "批量固定确认", MessageBoxButton.YesNo, MessageBoxImage.Information);
+        if (result != MessageBoxResult.Yes) return;
+
+        double totalW = _colCount * BaseTileSize;
+        double totalH = _rowCount * BaseTileSize;
+        double offsetX = (WorkspaceCanvas.ActualWidth - totalW) / 2;
+        double offsetY = (WorkspaceCanvas.ActualHeight - totalH) / 2;
+
+        string targetStr = GridTargetPathInput?.Text ?? "";
+        string encodedTarget = Convert.ToBase64String(Encoding.UTF8.GetBytes(targetStr));
+        string launchArgs = $"omt_action=open&target={encodedTarget}";
+
+        var bgColorMedia = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(BgColorInput.Text);
+        var winBgColor = Windows.UI.Color.FromArgb(bgColorMedia.A, bgColorMedia.R, bgColorMedia.G, bgColorMedia.B);
+
+        // Windows 限制每个 App 最多只能有 4096 个未来排期计划。
+        // 我们根据格子数量，计算每个格子可以分配到的最大排期次数，保证绝对不会崩盘
+        int maxSchedulesPerTile = 4000 / (validTileCount == 0 ? 1 : validTileCount);
+
+        try
+        {
+            for (int r = 0; r < _rowCount; r++)
+            {
+                for (int c = 0; c < _colCount; c++)
+                {
+                    var cell = _gridMap[r][c];
+                    if (cell.IsCovered) continue;
+
+                    string uniqueId = $"Genie_{DateTime.Now.Ticks}_{r}_{c}";
+                    List<string> frameFiles = new List<string>();
+
+                    double canvasX = offsetX + c * BaseTileSize + 2;
+                    double canvasY = offsetY + r * BaseTileSize + 2;
+                    double canvasW = (cell.IsWide ? BaseTileSize * 2 : BaseTileSize) - 4;
+                    double canvasH = BaseTileSize - 4;
+                    int targetW = cell.IsWide ? 620 : 310;
+                    int targetH = 310;
+
+                    for (int i = 0; i < _imageQueue.Count; i++)
+                    {
+                        var imgItem = _imageQueue[i];
+                        string fileName = $"{uniqueId}_frame{i}.png";
+                        string fullPath = Path.Combine(ApplicationData.Current.LocalFolder.Path, fileName);
+
+                        using (var sourceImg = System.Drawing.Image.FromFile(imgItem.FullPath))
+                        using (var destBmp = new System.Drawing.Bitmap(targetW, targetH, System.Drawing.Imaging.PixelFormat.Format32bppArgb))
+                        using (var g = System.Drawing.Graphics.FromImage(destBmp))
+                        {
+                            g.Clear(System.Drawing.Color.Transparent); 
+                            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+
+                            // 解决坐标偏移的 DPI 物理还原核心逻辑
+                            // 计算 WPF 虚拟宽度与 GDI+ 绝对物理宽度的比例系数
+                            double dpiRatioX = (double)sourceImg.Width / imgItem.Thumbnail.Width;
+                            double dpiRatioY = (double)sourceImg.Height / imgItem.Thumbnail.Height;
+
+                            // 将 UI 坐标乘以系数，完美还原到原图的物理坐标上
+                            double srcX = ((canvasX - imgItem.TranslateX) / imgItem.ScaleX) * dpiRatioX;
+                            double srcY = ((canvasY - imgItem.TranslateY) / imgItem.ScaleY) * dpiRatioY;
+                            double srcW = (canvasW / imgItem.ScaleX) * dpiRatioX;
+                            double srcH = (canvasH / imgItem.ScaleY) * dpiRatioY;
+
+                            g.DrawImage(sourceImg, new System.Drawing.Rectangle(0, 0, targetW, targetH),
+                                (float)srcX, (float)srcY, (float)srcW, (float)srcH, System.Drawing.GraphicsUnit.Pixel);
+                                
+                            destBmp.Save(fullPath, System.Drawing.Imaging.ImageFormat.Png);
+                        }
+                        frameFiles.Add(fileName);
+                    }
+
+                    Uri logoUri = new Uri("ms-appdata:///local/" + frameFiles[0]);
+                    TileSize tileSize = cell.IsWide ? TileSize.Wide310x150 : TileSize.Square150x150;
+                    SecondaryTile tile = new SecondaryTile(uniqueId, " ", launchArgs, logoUri, tileSize);
+                    
+                    tile.VisualElements.ShowNameOnSquare150x150Logo = false;
+                    tile.VisualElements.ShowNameOnWide310x150Logo = false;
+                    tile.VisualElements.BackgroundColor = winBgColor;
+
+                    if (cell.IsWide) {
+                        tile.VisualElements.Wide310x150Logo = logoUri; 
+                        tile.VisualElements.Square150x150Logo = logoUri; 
+                    }
+
+                    WinRT.Interop.InitializeWithWindow.Initialize(tile, new WindowInteropHelper(this).Handle);
+                    bool isPinned = await tile.RequestCreateAsync();
+
+                    // ================= 核心双引擎分发 =================
+                    if (isPinned && frameFiles.Count > 1)
+                    {
+                        var updater = Windows.UI.Notifications.TileUpdateManager.CreateTileUpdaterForSecondaryTile(uniqueId);
+                        updater.Clear();
+
+                        if (!isSyncMode)
+                        {
+                            // 模式 1：原生 3D 轮换队列 (系统随机错开)
+                            updater.EnableNotificationQueue(true);
+                            for (int i = 0; i < frameFiles.Count; i++)
+                            {
+                                var xmlDoc = new Windows.Data.Xml.Dom.XmlDocument();
+                                string xmlString = $"<tile><visual version='3'><binding template='TileMedium' branding='none'><image src='ms-appdata:///local/{frameFiles[i]}' placement='background'/></binding><binding template='TileWide' branding='none'><image src='ms-appdata:///local/{frameFiles[i]}' placement='background'/></binding></visual></tile>";
+                                xmlDoc.LoadXml(xmlString);
+                                var notification = new Windows.UI.Notifications.TileNotification(xmlDoc) { Tag = "frame" + i };
+                                updater.Update(notification);
+                            }
+                        }
+                        else
+                        {
+                            // 模式 2：预排期同步切换 (完美模拟 Tile Genie，无动画且瞬间同步)
+                            updater.EnableNotificationQueue(false); // 必须关闭动画队列
+
+                            // 预先生成这几张图的 XML，避免重复解析
+                            var xmlDocs = new List<Windows.Data.Xml.Dom.XmlDocument>();
+                            for (int i = 0; i < frameFiles.Count; i++)
+                            {
+                                var xmlDoc = new Windows.Data.Xml.Dom.XmlDocument();
+                                string xmlString = $"<tile><visual version='3'><binding template='TileMedium' branding='none'><image src='ms-appdata:///local/{frameFiles[i]}' placement='background'/></binding><binding template='TileWide' branding='none'><image src='ms-appdata:///local/{frameFiles[i]}' placement='background'/></binding></visual></tile>";
+                                xmlDoc.LoadXml(xmlString);
+                                xmlDocs.Add(xmlDoc);
+                            }
+
+                            // 批量向系统底层提交未来的替换计划表
+                            DateTime startTime = DateTime.Now;
+                            for (int i = 1; i <= maxSchedulesPerTile; i++)
+                            {
+                                int frameIndex = i % frameFiles.Count;
+                                DateTime deliveryTime = startTime.AddMinutes(intervalMinutes * i);
+
+                                var scheduledNotif = new Windows.UI.Notifications.ScheduledTileNotification(xmlDocs[frameIndex], deliveryTime);
+                                scheduledNotif.Id = "syncFrame_" + i;
+                                try {
+                                    updater.AddToSchedule(scheduledNotif);
+                                } catch { break; } // 防止达到系统上限报错
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 结算提示语
+            if (isSyncMode && _imageQueue.Count > 1) {
+                double safeDays = Math.Round((maxSchedulesPerTile * intervalMinutes) / (24.0 * 60.0), 1);
+                MessageBox.Show($"同步模式固定完成！\n\n程序已向系统提交了未来 {safeDays} 天的同步替换计划，时间一到绝对整齐划一！\n(注：{safeDays} 天后计划用完会停止轮换，届时重置固定即可)", 
+                                "大功告成", MessageBoxButton.OK, MessageBoxImage.Information);
+            } else {
+                MessageBox.Show("全景磁贴阵列固定完成！在开始菜单等几秒钟欣赏效果吧！", "大功告成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("切割或固定时发生意外: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     // --- 核心修复：色环生成 ---
