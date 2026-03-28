@@ -12,7 +12,7 @@
   <Properties>
     <DisplayName>OhMyTile</DisplayName>
     <PublisherDisplayName>Developer</PublisherDisplayName>
-    <Logo>Assets\Square150x150Logo.png</Logo>
+    <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
   <!-- 3. 依赖关系 (修复 0x80080204 的关键) -->
@@ -33,8 +33,8 @@
         Description="OhMyTile"
         BackgroundColor="#0078D7"
         Square150x150Logo="Assets\Square150x150Logo.png"
-        Square44x44Logo="Assets\Square150x150Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Assets\Square150x150Logo.png" />
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Square310x150Logo.png" />
       </uap:VisualElements>
     </Application>
   </Applications>

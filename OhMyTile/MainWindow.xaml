@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         ui:WindowHelper.UseModernWindowStyle="True"
-        Title="OhMyTile" Height="900" Width="900">
+        Title="OhMyTile" Height="972" Width="900">
     <TabControl ui:ControlHelper.CornerRadius="0">
         <TabItem Header="单块磁贴定制">
                 <Grid>
@@ -28,8 +28,21 @@
                     </Grid>
 
                     <TextBlock Text="第二步：自定义外观" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
-                    <TextBlock Text="磁贴显示名称"/>
-                    <TextBox x:Name="TileNameInput" Text="我的快捷方式"/>
+                    <Grid Margin="0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="磁贴显示名称" VerticalAlignment="Center"/>
+                            <CheckBox x:Name="ShowTileNameToggle" Content="显示名称" IsChecked="True" Grid.Column="1" Click="UpdatePreviewLabel_Event"/>
+                        </Grid>
+                        <TextBox x:Name="TileNameInput" Text="我的快捷方式"/>
+
+                        <TextBlock Text="名称字体颜色" Margin="0,10,0,0"/>
+                        <ComboBox x:Name="TileTextThemeCombo" SelectedIndex="0" HorizontalAlignment="Stretch" Margin="0,5" SelectionChanged="UpdatePreviewLabel_Event">
+                            <ComboBoxItem Content="白色字体 (Light)"/>
+                            <ComboBoxItem Content="黑色字体 (Dark)"/>
+                        </ComboBox>
 
                     <!-- 第二步：自定义外观 内部 -->
                     <TextBlock Text="背景颜色设置" FontWeight="Bold" FontSize="16" Margin="0,10,0,0"/>
@@ -181,12 +194,10 @@
                             <ComboBoxItem Content="定时同步切换 (整齐无缝切换)"/>
                         </ComboBox>
                         <!-- 间隔选择 (仅同步模式可用) -->
-                        <ComboBox x:Name="IntervalCombo" Grid.Column="1" SelectedIndex="0" Margin="5,0,0,0" IsEnabled="False" Width="90">
-                            <ComboBoxItem Content="15 分钟" Tag="15"/>
-                            <ComboBoxItem Content="30 分钟" Tag="30"/>
-                            <ComboBoxItem Content="1 小时" Tag="60"/>
-                            <ComboBoxItem Content="6 小时" Tag="360"/>
-                        </ComboBox>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="5,0,0,0">
+                            <TextBox x:Name="IntervalInput" Text="15" Width="60" IsEnabled="False" TextAlignment="Center" ToolTip="支持 10 - 86400 秒"/>
+                            <TextBlock Text="秒" Foreground="White" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                        </StackPanel>
                     </Grid>
 
                     <TextBlock Text="图片轮换队列 (最多5张, 系统原生3D翻转):" Foreground="White" Margin="10,10,10,5"/>
@@ -278,6 +289,32 @@
                     </Canvas>
                 </Border>
             </Grid>
+        </TabItem>
+        <!-- ================= 第三个选项卡：使用说明 ================= -->
+        <TabItem Header="使用说明 (Help)">
+            <ScrollViewer Padding="30" Background="#2D2D30">
+                <StackPanel>
+                    <TextBlock Text="OhMyTile - 使用指南" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,0,0,20"/>
+
+                    <TextBlock Text="1. 为什么有些快捷方式提取不到图标？" FontSize="18" FontWeight="Bold" Foreground="#4EB4FF" Margin="0,10,0,5"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="LightGray" FontSize="14" LineHeight="22">
+                        对于绝大部分 .exe 和标准快捷方式，程序会自动提取最高清的内置图标。
+                        &#x0a;但是，部分平台（如 Steam）生成的桌面快捷方式实际上是 URL 网页链接文件，或是像 Discord 一样指向一个无图标的更新程序。
+                        &#x0a;• 解决办法：程序已针对 Steam 游戏进行了特殊优化，现在可以直接获取到 Steam 游戏的图标了。对于其他无图标的特殊程序，请点击左侧的“选择自定义图片”按钮，手动为其分配一张漂亮的图标即可！
+                    </TextBlock>
+
+                    <TextBlock Text="2. 磁贴轮换模式有什么区别？" FontSize="18" FontWeight="Bold" Foreground="#4EB4FF" Margin="0,20,0,5"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="LightGray" FontSize="14" LineHeight="22">
+                        • 原生 3D 翻转：使用 Windows 10/11 磁贴系统自带的原生动画。特点是非常丝滑流畅，但缺点是翻转时间由系统底层随机决定，无法保证多块磁贴在同一秒翻转。
+                        &#x0a;• 定时同步切换：使用后台未来排期算法。没有 3D 翻转动画，但可以在指定的时间点（精确到秒），让整个大图的所有磁贴“瞬间”同步变成下一张图，彻底杜绝画面撕裂感。
+                    </TextBlock>
+                    
+                    <TextBlock Text="3. 大图切割会模糊吗？" FontSize="18" FontWeight="Bold" Foreground="#4EB4FF" Margin="0,20,0,5"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="LightGray" FontSize="14" LineHeight="22">
+                        完全不会。本程序采用了物理 DPI 还原算法，无论你在界面上怎么缩放，生成磁贴时都会直接从原始图片文件中以最高画质扣取画面，并在网格处自动让出 4 像素以完美兼容 Win10 系统的磁贴间隙。
+                    </TextBlock>
+                </StackPanel>
+            </ScrollViewer>
         </TabItem>
     </TabControl>
 </Window>

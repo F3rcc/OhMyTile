@@ -116,9 +116,8 @@ public partial class MainWindow : Window
 
     private void RotationModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // 只有选择“定时同步切换”时，才允许选择时间间隔
-        if (IntervalCombo != null)
-            IntervalCombo.IsEnabled = RotationModeCombo.SelectedIndex == 1;
+        if (IntervalInput != null)
+            IntervalInput.IsEnabled = RotationModeCombo.SelectedIndex == 1;
     }
 
     private void RemoveRow_Click(object sender, RoutedEventArgs e) {
@@ -242,7 +241,7 @@ public partial class MainWindow : Window
             MessageBox.Show("Windows 原生磁贴轮换队列最多支持 5 张图片！", "提示");
             return;
         }
-        var d = new OpenFileDialog { Filter = "图片|*.png;*.jpg;*.jpeg", Multiselect = true };
+        var d = new OpenFileDialog { Filter = "图片文件|*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.gif", Multiselect = true };
         if (d.ShowDialog() == true) {
             foreach (var path in d.FileNames) {
                 if (_imageQueue.Count >= 5) break;
@@ -347,11 +346,10 @@ public partial class MainWindow : Window
             foreach (var cell in row) if (!cell.IsCovered) validTileCount++;
         }
 
-        // 读取选择的模式和间隔
         bool isSyncMode = RotationModeCombo.SelectedIndex == 1;
-        int intervalMinutes = 15;
-        if (isSyncMode && IntervalCombo.SelectedItem is ComboBoxItem cbi && int.TryParse(cbi.Tag?.ToString(), out int v)) {
-            intervalMinutes = v;
+        int intervalSeconds = 15;
+        if (isSyncMode && int.TryParse(IntervalInput.Text, out int v)) {
+            intervalSeconds = Math.Clamp(v, 10, 86400); 
         }
 
         var result = MessageBox.Show($"即将生成 {validTileCount} 个磁贴阵列。\n请连续点击“是”完成排版。\n\n是否立即开始？", 
@@ -370,9 +368,11 @@ public partial class MainWindow : Window
         var bgColorMedia = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(BgColorInput.Text);
         var winBgColor = Windows.UI.Color.FromArgb(bgColorMedia.A, bgColorMedia.R, bgColorMedia.G, bgColorMedia.B);
 
-        // Windows 限制每个 App 最多只能有 4096 个未来排期计划。
-        // 我们根据格子数量，计算每个格子可以分配到的最大排期次数，保证绝对不会崩盘
         int maxSchedulesPerTile = 4000 / (validTileCount == 0 ? 1 : validTileCount);
+
+        // ================= 新增：高精度同步任务队列 =================
+        // 用于暂存所有格子的数据，等所有弹窗结束后再统一排期！
+        List<(Windows.UI.Notifications.TileUpdater updater, List<Windows.Data.Xml.Dom.XmlDocument> xmls, string uniqueId)> syncTasks = new();
 
         try
         {
@@ -407,12 +407,8 @@ public partial class MainWindow : Window
                             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
 
-                            // 解决坐标偏移的 DPI 物理还原核心逻辑
-                            // 计算 WPF 虚拟宽度与 GDI+ 绝对物理宽度的比例系数
                             double dpiRatioX = (double)sourceImg.Width / imgItem.Thumbnail.Width;
                             double dpiRatioY = (double)sourceImg.Height / imgItem.Thumbnail.Height;
-
-                            // 将 UI 坐标乘以系数，完美还原到原图的物理坐标上
                             double srcX = ((canvasX - imgItem.TranslateX) / imgItem.ScaleX) * dpiRatioX;
                             double srcY = ((canvasY - imgItem.TranslateY) / imgItem.ScaleY) * dpiRatioY;
                             double srcW = (canvasW / imgItem.ScaleX) * dpiRatioX;
@@ -420,7 +416,6 @@ public partial class MainWindow : Window
 
                             g.DrawImage(sourceImg, new System.Drawing.Rectangle(0, 0, targetW, targetH),
                                 (float)srcX, (float)srcY, (float)srcW, (float)srcH, System.Drawing.GraphicsUnit.Pixel);
-                                
                             destBmp.Save(fullPath, System.Drawing.Imaging.ImageFormat.Png);
                         }
                         frameFiles.Add(fileName);
@@ -440,9 +435,11 @@ public partial class MainWindow : Window
                     }
 
                     WinRT.Interop.InitializeWithWindow.Initialize(tile, new WindowInteropHelper(this).Handle);
+                    
+                    // 等待用户点击弹窗...
                     bool isPinned = await tile.RequestCreateAsync();
 
-                    // ================= 核心双引擎分发 =================
+                    // 固定成功后分配数据
                     if (isPinned && frameFiles.Count > 1)
                     {
                         var updater = Windows.UI.Notifications.TileUpdateManager.CreateTileUpdaterForSecondaryTile(uniqueId);
@@ -450,7 +447,7 @@ public partial class MainWindow : Window
 
                         if (!isSyncMode)
                         {
-                            // 模式 1：原生 3D 轮换队列 (系统随机错开)
+                            // 模式 1：原生 3D 轮换队列 (不受弹窗时间影响，立即执行)
                             updater.EnableNotificationQueue(true);
                             for (int i = 0; i < frameFiles.Count; i++)
                             {
@@ -463,10 +460,8 @@ public partial class MainWindow : Window
                         }
                         else
                         {
-                            // 模式 2：预排期同步切换 (完美模拟 Tile Genie，无动画且瞬间同步)
-                            updater.EnableNotificationQueue(false); // 必须关闭动画队列
-
-                            // 预先生成这几张图的 XML，避免重复解析
+                            // 模式 2：把需要排期的 Xml 数据先存入等待队列，不开火
+                            updater.EnableNotificationQueue(false); 
                             var xmlDocs = new List<Windows.Data.Xml.Dom.XmlDocument>();
                             for (int i = 0; i < frameFiles.Count; i++)
                             {
@@ -475,32 +470,54 @@ public partial class MainWindow : Window
                                 xmlDoc.LoadXml(xmlString);
                                 xmlDocs.Add(xmlDoc);
                             }
-
-                            // 批量向系统底层提交未来的替换计划表
-                            DateTime startTime = DateTime.Now;
-                            for (int i = 1; i <= maxSchedulesPerTile; i++)
-                            {
-                                int frameIndex = i % frameFiles.Count;
-                                DateTime deliveryTime = startTime.AddMinutes(intervalMinutes * i);
-
-                                var scheduledNotif = new Windows.UI.Notifications.ScheduledTileNotification(xmlDocs[frameIndex], deliveryTime);
-                                scheduledNotif.Id = "syncFrame_" + i;
-                                try {
-                                    updater.AddToSchedule(scheduledNotif);
-                                } catch { break; } // 防止达到系统上限报错
-                            }
+                            syncTasks.Add((updater, xmlDocs, uniqueId));
                         }
                     }
                 }
             }
 
-            // 结算提示语
-            if (isSyncMode && _imageQueue.Count > 1) {
-                double safeDays = Math.Round((maxSchedulesPerTile * intervalMinutes) / (24.0 * 60.0), 1);
-                MessageBox.Show($"同步模式固定完成！\n\n程序已向系统提交了未来 {safeDays} 天的同步替换计划，时间一到绝对整齐划一！\n(注：{safeDays} 天后计划用完会停止轮换，届时重置固定即可)", 
+            // ================= 核心修复：延迟统一下发与绝对唯一 ID =================
+            if (isSyncMode && syncTasks.Count > 0)
+            {
+                // 获取当前时间往后延2秒作为基准起步点
+                DateTime globalStartTime = DateTime.Now.AddSeconds(2);
+
+                foreach (var task in syncTasks)
+                {
+                    // 将超长的 uniqueId 压缩为 8 位的十六进制短码 (Hash)，绝对不会超出系统限制
+                    string shortTileId = ((uint)task.uniqueId.GetHashCode()).ToString("X8");
+
+                    for (int i = 1; i <= maxSchedulesPerTile; i++)
+                    {
+                        int frameIndex = i % task.xmls.Count;
+                        DateTime deliveryTime = globalStartTime.AddSeconds((double)intervalSeconds * i);
+
+                        // 【核心修复】：由于往 Windows 系统疯狂写入几千个计划需要消耗大量 CPU 时间
+                        // 等轮到后面几个磁贴时，前面的几秒钟可能已经“流逝”变成“过去的时间”了
+                        // Windows 绝对不允许指定过去的时间！所以如果发现这个计划时间已经来不及了，直接跳过这一帧！
+                        if (deliveryTime <= DateTime.Now.AddSeconds(1)) 
+                            continue;
+
+                        try {
+                            // 【核心修复】：将实例化移入 try 块内！防止抛出外层异常导致整个程序中断
+                            var scheduledNotif = new Windows.UI.Notifications.ScheduledTileNotification(task.xmls[frameIndex], deliveryTime);
+                            scheduledNotif.Id = $"{shortTileId}_{i}"; 
+
+                            task.updater.AddToSchedule(scheduledNotif);
+                        } catch { 
+                            // 如果系统满了或者报其他错，直接放弃当前磁贴剩余的计划，立刻去处理下一个磁贴
+                            break; 
+                        } 
+                    }
+                }
+                
+                double safeDays = Math.Round((maxSchedulesPerTile * intervalSeconds) / (24.0 * 3600.0), 1);
+                MessageBox.Show($"同步模式固定完成！\n\n程序已向系统统一提交了未来 {safeDays} 天的无缝替换计划，首张切换将很快启动，后续严格按照 {intervalSeconds} 秒整齐划一切换！\n(注：天数用完后重置即可)", 
                                 "大功告成", MessageBoxButton.OK, MessageBoxImage.Information);
-            } else {
-                MessageBox.Show("全景磁贴阵列固定完成！在开始菜单等几秒钟欣赏效果吧！", "大功告成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else if (!isSyncMode && _imageQueue.Count > 0)
+            {
+                MessageBox.Show("全景磁贴阵列固定完成！在开始菜单等几秒钟欣赏 3D 效果吧！", "大功告成", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
         catch (Exception ex)
@@ -779,10 +796,10 @@ private void UpdateSelectorsOnly()
             GenerateTileImage(imageToUse, fullPath, IconScaleSlider.Value);
             await Task.Delay(200);
             SecondaryTile tile = new SecondaryTile(uniqueId, TileNameInput.Text, launchArgs, new Uri("ms-appdata:///local/" + fileName), TileSize.Square150x150);
-            tile.VisualElements.ShowNameOnSquare150x150Logo = true;
+            tile.VisualElements.ShowNameOnSquare150x150Logo = ShowTileNameToggle.IsChecked == true;
+            tile.VisualElements.ForegroundText = TileTextThemeCombo.SelectedIndex == 0 ? ForegroundText.Light : ForegroundText.Dark;
             var c = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(BgColorInput.Text);
             tile.VisualElements.BackgroundColor = Windows.UI.Color.FromArgb(c.A, c.R, c.G, c.B);
-            tile.VisualElements.ForegroundText = ForegroundText.Light;
             WinRT.Interop.InitializeWithWindow.Initialize(tile, new WindowInteropHelper(this).Handle);
             await tile.RequestCreateAsync();
         } catch (Exception ex) { MessageBox.Show("失败: " + ex.Message); }
@@ -791,6 +808,17 @@ private void UpdateSelectorsOnly()
     private string GetShortcutTarget(string path)
     {
         try {
+            // --- 新增：针对 Steam 游戏及网页快捷方式 (.url) 的智能解析 ---
+            if (path.EndsWith(".url", StringComparison.OrdinalIgnoreCase)) {
+                var lines = File.ReadAllLines(path);
+                foreach(var line in lines) {
+                    if (line.StartsWith("IconFile=", StringComparison.OrdinalIgnoreCase)) {
+                        return line.Substring(9).Trim(); // 直接抓取真正的 .ico 路径
+                    }
+                }
+            }
+
+            // 原有的 .lnk 解析
             if (!path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)) return path;
             Type shellType = Type.GetTypeFromProgID("Shell.Application")!;
             dynamic shell = Activator.CreateInstance(shellType)!;
@@ -798,6 +826,13 @@ private void UpdateSelectorsOnly()
             var folderItem = folder.ParseName(Path.GetFileName(path));
             return folderItem.GetLink.Path;
         } catch { return path; }
+    }
+
+    private void UpdatePreviewLabel_Event(object sender, RoutedEventArgs e)
+    {
+        if (PreviewLabel == null) return;
+        PreviewLabel.Visibility = ShowTileNameToggle.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PreviewLabel.Foreground = TileTextThemeCombo.SelectedIndex == 0 ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Black;
     }
 
     private BitmapImage LoadImageNoLock(string path)
@@ -821,7 +856,7 @@ private void UpdateSelectorsOnly()
     private void SelectFile_Click(object sender, RoutedEventArgs e) { var d = new OpenFileDialog(); if (d.ShowDialog() == true) { TargetPathInput.Text = d.FileName; TileNameInput.Text = Path.GetFileNameWithoutExtension(d.FileName); } }
     private void SelectFolder_Click(object sender, RoutedEventArgs e) { var d = new OpenFolderDialog(); if (d.ShowDialog() == true) { TargetPathInput.Text = d.FolderName; TileNameInput.Text = new DirectoryInfo(d.FolderName).Name; } }
     private void SelectImage_Click(object sender, RoutedEventArgs e) {
-        var d = new OpenFileDialog { Filter = "图片|*.png;*.jpg;*.jpeg" };
+        var d = new OpenFileDialog { Filter = "图片文件|*.png;*.jpg;*.jpeg;*.ico;*.bmp;*.gif" };
         if (d.ShowDialog() == true) {
             CropWindow cw = new CropWindow(d.FileName) { Owner = this };
             if (cw.ShowDialog() == true) { _customCroppedPath = cw.CroppedPath; RefreshIconDisplay(); }
