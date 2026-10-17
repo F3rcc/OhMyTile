@@ -6,12 +6,12 @@
   IgnorableNamespaces="uap rescap">
 
   <!-- 1. 身份信息 -->
-  <Identity Name="OhMyTile.Final.Project" Publisher="CN=Developer" Version="1.0.0.0" />
+  <Identity Name="OhMyTile.Final.Project" Publisher="CN=F3rcc" Version="1.0.1.0" />
 
   <!-- 2. 基本属性 -->
   <Properties>
     <DisplayName>OhMyTile</DisplayName>
-    <PublisherDisplayName>Developer</PublisherDisplayName>
+    <PublisherDisplayName>F3rcc</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -34,7 +34,7 @@
         BackgroundColor="#0078D7"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Assets\Square310x150Logo.png" />
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
       </uap:VisualElements>
     </Application>
   </Applications>

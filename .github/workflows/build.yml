@@ -1,0 +1,133 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'certs/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: win-x64
+    runs-on: windows-2022
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # 松散文件注册（Add-AppxPackage -Register），不需要 .appx / MSIX 打包，
+      # 这里发布的是自包含 win-x64 输出，用户机器无需预装 .NET 运行时
+      - name: 发布 win-x64
+        run: >
+          dotnet publish OhMyTile/OhMyTile.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:DebugType=None -p:PublishSingleFile=false
+          -o stage/app
+
+      - name: 恢复签名证书
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.PFX_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PFX_BASE64)) {
+            throw '缺少仓库 Secret: PFX_BASE64'
+          }
+          $dir = Join-Path $env:RUNNER_TEMP 'signing'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $pfx = Join-Path $dir 'OhMyTile.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          "PFX_PATH=$pfx" >> $env:GITHUB_ENV
+
+      - name: Authenticode 签名
+        shell: pwsh
+        env:
+          PFX_PASSWORD: ${{ secrets.PFX_PASSWORD }}
+        run: |
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                      Where-Object { $_.FullName -match '\\x64\\' } |
+                      Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw '找不到 signtool.exe' }
+          Write-Host "signtool: $($signtool.FullName)"
+
+          $targets = @('stage\app\OhMyTile.exe')
+          foreach ($t in $targets) {
+            & $signtool.FullName sign /fd SHA256 /f $env:PFX_PATH /p $env:PFX_PASSWORD `
+                /tr http://timestamp.digicert.com /td SHA256 $t
+            if ($LASTEXITCODE -ne 0) { throw "签名失败：$t (exit $LASTEXITCODE)" }
+          }
+
+      - name: 校验签名
+        shell: pwsh
+        run: |
+          $s = Get-AuthenticodeSignature 'stage\app\OhMyTile.exe'
+          Write-Host "状态  ：$($s.Status)"
+          Write-Host "签名者：$($s.SignerCertificate.Subject)"
+          Write-Host "指纹  ：$($s.SignerCertificate.Thumbprint)"
+          if (-not $s.SignerCertificate) { throw 'exe 未签名' }
+          if ($s.SignerCertificate.Subject -ne 'CN=F3rcc') {
+            throw "签名者 Subject 是 '$($s.SignerCertificate.Subject)'"
+          }
+          if ($s.SignerCertificate.Thumbprint -ne 'CDB3C7803C6ECD5E1FE511A03FA4DA6CDD2216EA') {
+            throw "签名证书指纹不匹配：$($s.SignerCertificate.Thumbprint)"
+          }
+
+      - name: 组装安装包
+        shell: pwsh
+        run: |
+          Copy-Item packaging\Install.ps1 stage\ -Force
+          Copy-Item packaging\Install-Or-Update.bat stage\ -Force
+          Copy-Item certs\OhMyTile.cer stage\ -Force
+
+          $ver = ([xml](Get-Content 'stage\app\AppxManifest.xml')).Package.Identity.Version
+          if (-not $ver) { throw '读不到 AppxManifest.xml 里的版本号' }
+
+          $zip = Join-Path $env:GITHUB_WORKSPACE "OhMyTile_${ver}_win-x64.zip"
+          Compress-Archive -Path 'stage\*' -DestinationPath $zip -Force
+
+          "ZIP_PATH=$zip" >> $env:GITHUB_ENV
+          "APP_VERSION=$ver" >> $env:GITHUB_ENV
+
+          Write-Host ''
+          Write-Host "产物 $([IO.Path]::GetFileName($zip))（$([math]::Round((Get-Item $zip).Length/1MB,1)) MB）"
+          Get-ChildItem stage -Depth 0 | ForEach-Object { Write-Host "  $($_.Name)" }
+          Write-Host "  app\ ($((Get-ChildItem stage\app -File).Count) 个文件)"
+
+      - name: 写构建摘要
+        if: always()
+        shell: pwsh
+        run: |
+          @(
+            '## OhMyTile build'
+            ''
+            "- 版本：``$env:APP_VERSION``"
+            "- 目标：``win-x64`` / Release / 自包含（免装 .NET）"
+            "- 签名：``OhMyTile.exe`` Authenticode / CN=F3rcc（指纹 CDB3C780…16EA）"
+            "- 产物：``$(if ($env:ZIP_PATH) { [IO.Path]::GetFileName($env:ZIP_PATH) } else { '（打包失败）' })``"
+            ''
+            '安装：解压后双击 `Install-Or-Update.bat`（松散文件注册，需先开启开发者模式）。'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: 上传产物
+        if: env.ZIP_PATH != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: OhMyTile-win-x64-${{ env.APP_VERSION }}
+          path: ${{ env.ZIP_PATH }}
+          if-no-files-found: error
+          retention-days: 30
