@@ -64,7 +64,11 @@ if ($Uninstall) {
 }
 
 # ---------- 定位 app 目录 ----------
-if (-not $AppDir) { $AppDir = Join-Path $Root 'app' }
+# 兼容两种布局：zip 内是 <root>\app\，若 AppxManifest.xml 就在脚本同级则直接用 <root>
+if (-not $AppDir) {
+    if (Test-Path (Join-Path $Root 'AppxManifest.xml')) { $AppDir = $Root }
+    else { $AppDir = Join-Path $Root 'app' }
+}
 if (-not (Test-Path $AppDir)) { throw "找不到 app 目录：$AppDir" }
 $AppDir = (Resolve-Path $AppDir).Path
 
