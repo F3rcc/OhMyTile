@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         ui:WindowHelper.UseModernWindowStyle="True"
-        Title="OhMyTile" Height="972" Width="900">
+        Title="OhMyTile" Height="760" Width="1100" MinHeight="520" MinWidth="900"
+        WindowStartupLocation="CenterScreen">
     <TabControl ui:ControlHelper.CornerRadius="0">
         <TabItem Header="单块磁贴定制">
                 <Grid>
@@ -12,7 +13,14 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <ui:SimpleStackPanel Margin="10" Spacing="10">
+                    <Grid Grid.Column="0" Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" MinHeight="0"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                      Padding="0,0,10,0" Focusable="False">
+                    <ui:SimpleStackPanel Spacing="10">
                     <TextBlock Text="第一步：选择目标" FontWeight="Bold" FontSize="16"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -145,11 +153,12 @@
                         <!-- 新增：重置按钮 -->
                         <Button Grid.Column="1" Content="重置" Click="ResetIcon_Click" Margin="5,0,0,0" ToolTip="恢复使用文件默认图标"/>
                     </Grid>        
-                    <Separator Margin="0,10"/>
-                    
-                    <Button Content="固定到开始菜单" Click="CreateCustomLauncherTile_Click" 
-                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40"/>
-                </ui:SimpleStackPanel>
+                    </ui:SimpleStackPanel>
+                        </ScrollViewer>
+                        <!-- 主按钮固定在底部，不随内容滚动，任何分辨率下都可见 -->
+                        <Button Grid.Row="1" Content="固定到开始菜单" Click="CreateCustomLauncherTile_Click"
+                                Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="44" Margin="0,10,0,0"/>
+                    </Grid>
 
                     <Grid Grid.Column="1" Background="#000000">
                         <!-- 修改右侧预览部分 -->
@@ -179,7 +188,14 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- 左侧控制面板 -->
-                <StackPanel Grid.Column="0" Margin="15">
+                <Grid Grid.Column="0" Margin="15">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" MinHeight="0"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,10,0" Focusable="False">
+                    <StackPanel>
                     <TextBlock Text="大图切割向导" FontSize="20" FontWeight="Bold" Foreground="White" Margin="10"/>
                     
                     <TextBlock Text="轮换模式与间隔:" Foreground="White" Margin="10,10,10,5"/>
@@ -260,9 +276,12 @@
                     <TextBlock Text="点击磁贴时打开 (可选):" Foreground="White" Margin="10,10,10,5"/>
                     <TextBox x:Name="GridTargetPathInput" ui:ControlHelper.PlaceholderText="输入文件路径或网址，留空则打开本软件" Margin="10,0,10,10"/>
                     
-                    <Button Content="✂️ 开始切割并批量固定" Click="PinGridTiles_Click" 
-                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="40" Margin="10,10,10,10"/>
-                </StackPanel>
+                    </StackPanel>
+                    </ScrollViewer>
+                    <!-- 主按钮固定在底部 -->
+                    <Button Grid.Row="1" Content="✂️ 开始切割并批量固定" Click="PinGridTiles_Click"
+                            Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Stretch" Height="44" Margin="0,10,0,0"/>
+                </Grid>
 
                 <!-- 右侧动态操作区 -->
                 <Border Grid.Column="1" ClipToBounds="True" Background="#1E1E1E" SizeChanged="Workspace_SizeChanged">

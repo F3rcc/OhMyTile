@@ -14,7 +14,8 @@
   <ItemGroup>
     <PackageReference Include="ModernWpfUI" Version="0.9.6" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Windows.CsWinRT" Version="2.1.1" />
+    <!-- Microsoft.Windows.CsWinRT 已移除：TFM net10.0-windows10.0.19041.0 已内置 WinRT 投影，
+         该包会强制调用 cswinrt.exe 并要求本机安装 Windows 10 SDK，导致无 SDK 的机器 / CI 无法编译 -->
   </ItemGroup>
 
   <ItemGroup>

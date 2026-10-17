@@ -86,5 +86,34 @@ https://www.youtube.com/watch?v=VAiTO36j5nI&list=LL&index=24
 
 1. 打开 `Windows 设置` -> `更新与安全` -> `开发者选项`，**开启「从任意源（包括松散文件）安装应用」**。
 ![setting](/OhMyTile/Assets/setting.png)
-2. 下载本仓库 Release 压缩包并解压。
-3. 双击运行 **一键安装或更新.bat**
+2. 从 [Release](https://github.com/F3rcc/OhMyTile/releases) 下载 `OhMyTile_<版本>_win-x64.zip` 并解压。
+   压缩包已自带 .NET 运行时（自包含），**无需另外安装 .NET**。
+3. 双击运行 **`Install-Or-Update.bat`**（或右键 `Install.ps1` → 使用 PowerShell 运行）。
+
+> ⚠️ **解压到哪个文件夹，就一直放在哪里**。松散文件注册是直接引用该目录，
+> 移动或删除文件夹后应用将无法启动，需要重新注册。
+
+### 卸载
+
+双击 `Install-Or-Update.bat` 无法卸载，请用 PowerShell 执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install.ps1 -Uninstall
+```
+
+### 关于签名
+
+`OhMyTile.exe` 带有 Authenticode 代码签名（自签名证书），可在文件属性 → 数字签名中查看：
+
+| 项 | 值 |
+|---|---|
+| Subject | `CN=F3rcc` |
+| SHA-256 指纹 | `CB:86:17:09:21:FA:62:FB:9C:1A:2E:3C:D0:AB:60:F5:65:59:D0:AB:9C:CB:EE:AD:4F:E4:3B:FF:B5:B3:4D:94` |
+| 有效期至 | 2031-10-17 |
+
+证书公钥见本仓库 `certs/OhMyTile.cer`。因为它是自签名证书，系统不会自动信任，
+安装时也**不需要**把它加入受信任存储（松散文件注册不校验签名）。
+请以 SHA-256 指纹为准，不要信任同名的其他证书。
+
+> 本仓库的包发布者为 `CN=F3rcc`，与上游 `CN=Developer` 不同。
+> 若你装过上游版本，建议先卸载再从本仓库安装（`Install.ps1` 会自动清理旧发布者版本）。

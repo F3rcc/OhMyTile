@@ -31,6 +31,63 @@ public partial class MainWindow : Window
 
     // ===== 大图切割模式新增状态变量 =====
     private const double BaseTileSize = 150.0; // 预览基准尺寸
+
+    // ---- 窗口尺寸自适应：让窗口永远不超出当前显示器的工作区 ----
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    private void FitWindowToWorkArea() {
+        try {
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+
+            IntPtr monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if (monitor == IntPtr.Zero) return;
+
+            var mi = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+            if (!GetMonitorInfo(monitor, ref mi)) return;
+
+            // rcWork 是物理像素；优先用 GetDpiForWindow（SourceInitialized 阶段
+            // VisualTreeHelper.GetDpi 往往还返回 96，会算出错误结果），
+            // 取不到时再退回 VisualTreeHelper。
+            double scale = 0;
+            try {
+                uint dpi = GetDpiForWindow(hwnd);
+                if (dpi >= 96) scale = dpi / 96.0;
+            } catch { }
+            if (scale <= 0) scale = VisualTreeHelper.GetDpi(this).DpiScaleY;
+            if (scale <= 0) scale = 1.0;
+
+            double workH = (mi.rcWork.Bottom - mi.rcWork.Top) / scale;
+            double workW = (mi.rcWork.Right - mi.rcWork.Left) / scale;
+            if (workH <= 0 || workW <= 0) return;
+
+            MaxHeight = workH;
+            MaxWidth = workW;
+            Height = Math.Min(Height, workH * 0.96);
+            Width  = Math.Min(Width,  workW * 0.96);
+        } catch { /* 尺寸自适应失败不影响主流程 */ }
+    }
+
     private class TileState {
         public bool IsWide { get; set; }
         public bool IsCovered { get; set; }
@@ -78,6 +135,11 @@ public partial class MainWindow : Window
     {
         Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
         InitializeComponent();
+
+        // 根据当前显示器的真实工作区限制窗口尺寸：原先 Height=972 写死，在 125%/150% 缩放下
+        // 会被裁到屏幕外，导致底部“固定”按钮完全看不到
+        // （SystemParameters.WorkArea 在 PerMonitorV2 下不可靠，改用 Win32 + 实际 DPI）
+        SourceInitialized += (_, __) => FitWindowToWorkArea();
 
         // 初始化色环
         CreateColorWheel();
